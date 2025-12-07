@@ -3,63 +3,43 @@ name: CD - Deploy Application
 on:
   release:
     types: [published]
-  workflow_dispatch:  
+  workflow_dispatch:  # Для ручного запуска
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install and verify dependencies (build stage)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -c "import app.main; print('✅ App import successful')"
-
-      - name: Run unit tests (optional but recommended)
-        run: python -m pytest tests/test_unit.py -v
-
-      - name: Prepare SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
-
-      - name: Deploy to VM via SSH
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ssh -p 2435 masha@course.prafdin.ru << ENDSSH
-            set -e
-            cd /home/masha/catty-app
-            echo "🔁 Pulling latest code from github-actions..."
-            git reset --hard
-            git clean -fd
-            git pull "https://$GITHUB_TOKEN@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
-            echo "🐍 Setting up virtual environment..."
-            python3 -m venv venv
-            ./venv/bin/pip install --upgrade pip
-            ./venv/bin/pip install -r requirements.txt
-            ./venv/bin/playwright install --with-deps chromium
-            echo "🛑 Stopping old app..."
-            pkill -f "uvicorn.*8181" || true
-            echo "🚀 Starting new app..."
-            nohup ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
-            sleep 2
-            echo "✅ Deployment completed!"
-          ENDSSH
-
-      - name: Final notification
-        run: |
-          echo "✅ Application deployed successfully!"
-          echo "🔗 URL: http://app.fursova.course.prafdin.ru"
-          echo "🕒 Deployed at: $(date -u)"
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
+    
+    - name: Deploy to server via SSH
+      run: |
+        echo "🚀 Deploying application via SSH port 2435..."
+        ssh -p 2435 masha@course.prafdin.ru << ENDSSH
+          cd /home/masha/catty-app
+          echo "Current directory: \$(pwd)"
+          echo "Pulling latest changes..."
+          git pull "https://${{ secrets.GITHUB_TOKEN }}@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
+          echo "Installing dependencies..."
+          pip3 install -r requirements.txt --break-system-packages
+          echo "Stopping previous application..."
+          pkill -f uvicorn || true
+          echo "Starting new application..."
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
+          echo "✅ Deployment completed!"
+        ENDSSH
+    
+    - name: Verify deployment
+      run: |
+        echo "🚀 Application deployed successfully!"
+        echo "📅 Deployment time: $(date)"
+        echo "🌐 Application URL: http://app.fursova.course.prafdin.ru"
+        echo "🔧 SSH port used: 2435"

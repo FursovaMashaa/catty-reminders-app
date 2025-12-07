@@ -35,29 +35,25 @@ jobs:
           ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
 
       - name: Deploy to VM via SSH
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ssh -p 2435 masha@course.prafdin.ru << 'ENDSSH'
-            set -e  # остановить при любой ошибке
-
+          ssh -p 2435 masha@course.prafdin.ru << ENDSSH
+            set -e
             cd /home/masha/catty-app
-
             echo "🔁 Pulling latest code from github-actions..."
             git reset --hard
             git clean -fd
-            git pull "https://${GITHUB_TOKEN}@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
-
+            git pull "https://$GITHUB_TOKEN@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
             echo "🐍 Setting up virtual environment..."
             python3 -m venv venv
             ./venv/bin/pip install --upgrade pip
             ./venv/bin/pip install -r requirements.txt
             ./venv/bin/playwright install --with-deps chromium
-
-            echo "🛑 Stopping old app (if any)..."
+            echo "🛑 Stopping old app..."
             pkill -f "uvicorn.*8181" || true
-
-            echo "🚀 Starting new app on port 8181..."
+            echo "🚀 Starting new app..."
             nohup ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
-
             sleep 2
             echo "✅ Deployment completed!"
           ENDSSH

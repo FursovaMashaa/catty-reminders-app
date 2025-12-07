@@ -22,18 +22,18 @@ jobs:
     
     - name: Deploy to server via SSH
       run: |
-        echo "🚀 Deploying application via SSH port 2475..."
-        ssh -p 2435 masha@course.prafdin.ru << 'ENDSSH'
+        echo "🚀 Deploying application via SSH port 2435..."
+        ssh -p 2435 masha@course.prafdin.ru << ENDSSH
           cd /home/masha/catty-app
           echo "Current directory: \$(pwd)"
           echo "Pulling latest changes..."
-          git pull origin github-actions
+          git pull "https://${{ secrets.GITHUB_TOKEN }}@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
           echo "Installing dependencies..."
           pip3 install -r requirements.txt --break-system-packages
           echo "Stopping previous application..."
           pkill -f uvicorn || true
           echo "Starting new application..."
-          nohup /home/masha/.local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
           echo "✅ Deployment completed!"
         ENDSSH
     

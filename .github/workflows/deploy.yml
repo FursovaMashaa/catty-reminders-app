@@ -3,7 +3,7 @@ name: CD - Deploy Application
 on:
   release:
     types: [published]
-  workflow_dispatch:  # для ручного запуска (удобно для тестов)
+  workflow_dispatch:  
 
 jobs:
   deploy:
@@ -44,7 +44,7 @@ jobs:
             echo "🔁 Pulling latest code from github-actions..."
             git reset --hard
             git clean -fd
-            git pull origin github-actions
+            git pull "https://${GITHUB_TOKEN}@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
 
             echo "🐍 Setting up virtual environment..."
             python3 -m venv venv

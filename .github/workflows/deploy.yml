@@ -31,7 +31,7 @@ jobs:
       with:
         host: course.prafdin.ru
         port: 2435
-        username: nopressure
+        username: masha
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           echo "=== Lab 3: Docker Deployment ==="

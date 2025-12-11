@@ -2,9 +2,9 @@ name: 🐳 Lab 3 - Docker CI
 
 on:
   push:
-    branches: [ docker-lab3 ]
+    branches: [ lab3-docker ]
   pull_request:
-    branches: [ docker-lab3 ]
+    branches: [ lab3-docker ]
 
 permissions:
   contents: read

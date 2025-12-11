@@ -1,48 +1,54 @@
-name: CD - Deploy Application
+name: CD
 
 on:
   release:
     types: [published]
-  workflow_dispatch:  # Для ручного запуска
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
-    
-    - name: Deploy to server via SSH
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        ssh -p 2435 masha@course.prafdin.ru << ENDSSH
-          cd /home/masha/catty-app
-          echo "Current directory: \$(pwd)"
-          echo "Pulling latest changes..."
-          git pull "https://\$GITHUB_TOKEN@github.com/FursovaMashaa/catty-reminders-app.git" github-actions
-          echo "Installing dependencies..."
-          python3 -m venv venv
-          ./venv/bin/pip install -r requirements.txt
-          ./venv/bin/playwright install --with-deps chromium
-          echo "Stopping previous application..."
-          pkill -f "uvicorn.*8181" || true
-          echo "Starting new application..."
-          nohup ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
-          echo "✅ Deployment completed!"
-        ENDSSH
-    
-    - name: Verify deployment
-      run: |
-        echo "🚀 Application deployed successfully!"
-        echo "📅 Deployment time: $(date)"
-        echo "🌐 Application URL: http://app.fursova.course.prafdin.ru"
-        echo "🔧 SSH port used: 2435"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+          chmod 600 ~/.ssh/vm_key
+          ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
+
+      - name: Deploy Docker Container to VM
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
+        run: |
+          IMAGE_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):latest
+
+          echo "🚀 Deploying $IMAGE_LOWER to VM..."
+
+          ssh -o BatchMode=yes \
+              -i ~/.ssh/vm_key \
+              -p 2435 \
+              masha@course.prafdin.ru "
+              
+            # Авторизуемся в GHCR с GITHUB_TOKEN
+            echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Получаем новый образ
+            sudo docker pull $IMAGE_LOWER
+            
+            # Останавливаем и удаляем старый контейнер
+            sudo docker stop catty-container 2>/dev/null || true
+            sudo docker rm catty-container 2>/dev/null || true
+            
+            # Запускаем новый контейнер
+            sudo docker run -d \
+              --name catty-container \
+              -p 8181:8181 \
+              --restart always \
+              $IMAGE_LOWER
+              
+            # Проверка
+            echo '✅ Deployment finished!'
+            sudo docker ps --filter name=catty-container --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+          "

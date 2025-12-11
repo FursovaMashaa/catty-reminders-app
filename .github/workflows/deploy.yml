@@ -1,54 +1,63 @@
-name: CD
+name: 🚀 Lab 3 - Docker Deploy
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+  push:
+    branches: [ lab3-docker ]
+    paths:
+      - 'Dockerfile'
+      - 'app/**'
+      - 'requirements.txt'
+      - '.github/workflows/docker-cd.yml'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup SSH
-        run: |
-              sudo mkdir -p ~/.ssh
-              echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
-              chmod 600 ~/.ssh/vm_key
-              ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
-
-      - name: Deploy Docker Container to VM
-        env:
-          IMAGE_NAME: ghcr.io/${{ github.repository }}
-        run: |
-          IMAGE_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):latest
-
-          echo "🚀 Deploying $IMAGE_LOWER to VM..."
-
-          ssh -o BatchMode=yes \
-              -i ~/.ssh/vm_key \
-              -p 2435 \
-              masha@course.prafdin.ru "
-              
-            # Авторизуемся в GHCR с GITHUB_TOKEN
-            echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Получаем новый образ
-            sudo docker pull $IMAGE_LOWER
-            
-            # Останавливаем и удаляем старый контейнер
-            sudo docker stop catty-container 2>/dev/null || true
-            sudo docker rm catty-container 2>/dev/null || true
-            
-            # Запускаем новый контейнер
-            sudo docker run -d \
-              --name catty-container \
-              -p 8181:8181 \
-              --restart always \
-              $IMAGE_LOWER
-              
-            # Проверка
-            echo '✅ Deployment finished!'
-            sudo docker ps --filter name=catty-container --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
-          "
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Debug info
+      run: |
+        echo "🔧 Lab 3 - Docker Deployment"
+        echo "Trigger: ${{ github.event_name }}"
+        echo "CI pushes to GHCR, CD pulls from registry"
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: course.prafdin.ru
+        port: 2435
+        username: nopressure
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "=== Lab 3: Docker Deployment ==="
+          echo "Pulling image from GitHub Container Registry..."
+          
+          # Логинимся в GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Тянем образ
+          docker pull ghcr.io/${{ github.repository }}:docker-lab3
+          
+          echo "Stopping old container..."
+          docker stop catty-reminders || true
+          docker rm catty-reminders || true
+          
+          echo "Starting new container..."
+          docker run -d \
+            --name catty-reminders \
+            --restart unless-stopped \
+            -p 8181:8181 \
+            ghcr.io/${{ github.repository }}:docker-lab3
+          
+          sleep 5
+          echo "✅ Docker container deployed from registry!"
+          echo "📡 Application: http://app.fursova.course.prafdin.ru"
+          echo ""
+          echo "📊 Architecture:"
+          echo "- CI: builds and pushes to GHCR"
+          echo "- CD: pulls from GHCR and deploys"

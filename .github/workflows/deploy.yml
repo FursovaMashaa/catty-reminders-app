@@ -1,60 +1,44 @@
-name: 🚀 Lab 3 - Docker Deploy
+name: CD - Deploy Docker Container
 
 on:
   release:
     types: [published]
-  workflow_dispatch:
-  push:
-    branches: [ lab3-docker ]
-    paths:
-      - 'Dockerfile'
-      - 'app/**'
-      - 'requirements.txt'
-      - '.github/workflows/docker-cd.yml'
+  workflow_dispatch:  # для ручного запуска
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Debug info
-      run: |
-        echo "🔧 Lab 3 - Docker Deployment"
-        echo "Trigger: ${{ github.event_name }}"
-        echo "CI pushes to GHCR, CD pulls from registry"
-    
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: course.prafdin.ru
-        port: 2435
-        username: masha
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
+      - name: Deploy to VM via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: course.prafdin.ru
+          port: 2435
+          username: masha
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             echo "=== Lab 3: Docker Deployment ==="
             
-            # Преобразуем имя репозитория в нижний регистр
-            IMAGE_NAME="ghcr.io/fursovamashaa/catty-reminders-app:latest"
-            
-            echo "Pulling image from GitHub Container Registry..."
+            # Логин в GHCR
             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-            docker pull $IMAGE_NAME
-          
-            echo "Stopping old container..."
+            
+            # Имя образа — строчные буквы!
+            IMAGE="ghcr.io/fursovamashaa/catty-reminders-app:latest"
+            
+            echo "Pulling image: $IMAGE"
+            docker pull "$IMAGE"
+            
+            echo "Stopping old container (if exists)..."
             docker stop catty-reminders 2>/dev/null || true
             docker rm catty-reminders 2>/dev/null || true
-          
+            
             echo "Starting new container..."
             docker run -d \
               --name catty-reminders \
               --restart unless-stopped \
               -p 8181:8181 \
-              $IMAGE_NAME
-          
-            sleep 5
-            echo "✅ Docker container deployed from registry!"
-            echo "📡 Application: http://app.fursova.course.prafdin.ru"
+              "$IMAGE"
+            
+            sleep 3
+            echo "✅ Container deployed!"
+            echo "📡 App URL: http://app.fursova.course.prafdin.ru"

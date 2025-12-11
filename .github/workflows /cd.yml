@@ -1,0 +1,28 @@
+name: CD - Deploy with Docker Compose
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: course.prafdin.ru
+          port: 2435
+          username: masha
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/masha/catty-app
+            git pull origin lab4
+
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker compose pull
+            docker compose down
+            docker compose up -d
+
+            echo "✅ Deployed! App: http://app.fursova.course.prafdin.ru"

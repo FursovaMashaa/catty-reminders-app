@@ -1,43 +1,39 @@
-name: CD - Deploy Docker Container
+name: CD Pipeline
 
 on:
   release:
     types: [published]
-  workflow_dispatch:  # для ручного запуска
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VM via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: course.prafdin.ru
-          port: 2435
-          username: masha
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "=== Lab 3: Docker Deployment ==="
-            
-            # Логин в GHCR
+            echo "Login to GHCR..."
             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            IMAGE="ghcr.io/fursovamashaa/catty-reminders-app:latest"
-            
-            echo "Pulling image: $IMAGE"
+
+            # Используем тег по ветке (например, docker-latest)
+            IMAGE="ghcr.io/fursovamashaa/catty-reminders-app:docker"  # ← имя в нижнем регистре!
+
+            echo "Pull image: $IMAGE"
             docker pull "$IMAGE"
-            
-            echo "Stopping old container (if exists)..."
+
+            echo "Stop old container..."
             docker stop catty-reminders 2>/dev/null || true
-            docker rm catty-reminders 2>/dev/null || true
-            
-            echo "Starting new container..."
+            docker rm cotty-reminders 2>/dev/null || true
+
+            echo "Start new container..."
             docker run -d \
               --name catty-reminders \
-              --restart unless-stopped \
               -p 8181:8181 \
+              --restart unless-stopped \
               "$IMAGE"
-            
-            sleep 3
-            echo "✅ Container deployed!"
-            echo "📡 App URL: http://app.fursova.course.prafdin.ru"
+
+            echo "✅ Done! App URL: http://app.fursova.course.prafdin.ru"

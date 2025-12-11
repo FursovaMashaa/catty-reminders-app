@@ -22,8 +22,7 @@ jobs:
             # Логин в GHCR
             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Имя образа — строчные буквы!
-            IMAGE="ghcr.io/fursovamashaa/catty-reminders:latest"
+            IMAGE="ghcr.io/fursovamashaa/catty-reminders-app:latest"
             
             echo "Pulling image: $IMAGE"
             docker pull "$IMAGE"

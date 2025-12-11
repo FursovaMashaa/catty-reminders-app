@@ -13,10 +13,10 @@ jobs:
 
       - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
-          chmod 600 ~/.ssh/vm_key
-          ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
+              sudo mkdir -p ~/.ssh
+              echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+              chmod 600 ~/.ssh/vm_key
+              ssh-keyscan -p 2435 course.prafdin.ru >> ~/.ssh/known_hosts
 
       - name: Deploy Docker Container to VM
         env:

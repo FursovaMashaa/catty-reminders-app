@@ -16,24 +16,20 @@ jobs:
           username: masha
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Login to GHCR..."
-            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
+              echo "Login to GHCR..."
+              echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            IMAGE="ghcr.io/fursovamashaa/catty-reminders-app:latest"  
-
-            echo "Pull image: $IMAGE"
-            docker pull "$IMAGE"
-
-            echo "Stop old container..."
-            docker stop catty-reminders 2>/dev/null || true
-            docker rm cotty-reminders 2>/dev/null || true
-
-            echo "Start new container..."
-            docker run -d \
-              --name catty-reminders \
-              -p 8181:8181 \
-              --restart unless-stopped \
-              "$IMAGE"
-
-            echo "✅ Done! App URL: http://app.fursova.course.prafdin.ru"
+              echo "Pulling latest image..."
+              docker pull ghcr.io/fursovamashaa/catty-reminders-app:latest
+            
+              echo "Removing old container (force)..."
+              docker rm -f catty-reminders 2>/dev/null || true
+            
+              echo "Starting new container..."
+              docker run -d \
+                --name catty-reminders \
+                -p 8181:8181 \
+                --restart unless-stopped \
+                ghcr.io/fursovamashaa/catty-reminders-app:latest
+            
+              echo "✅ Deployment complete!"

@@ -1,14 +1,18 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine  # ← Alpine вместо slim (в 5 раз меньше!)
 
-RUN apt-get update && apt-get install -y \
+# Устанавливаем только нужное для mysqlclient
+RUN apk add --no-cache \
+    mariadb-connector-c-dev \
     gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    musl-dev \
+    && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
-# Сначала только requirements для кэширования
+# Используем Python wheel для ускорения
+RUN pip install --no-cache-dir --upgrade pip wheel
+
+# Сначала requirements для кэширования
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -5,7 +5,7 @@ on:
     types: [published]
   workflow_dispatch:
   push:
-    branches: [ docker-lab3 ]
+    branches: [ lab3-docker ]
     paths:
       - 'Dockerfile'
       - 'app/**'
@@ -32,9 +32,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: course.prafdin.ru
-        # Используем порт 2435 из второго варианта
         port: 2435
-        # Используем username masha из второго варианта
         username: masha
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
@@ -70,12 +68,3 @@ jobs:
           
           sleep 5
           echo "✅ Docker container deployed successfully!"
-          
-          # Проверяем статус контейнера
-          echo "📊 Container status:"
-          docker ps --filter "name=catty-reminders" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-          
-          echo ""
-          echo "🌐 Application URL: http://app.titovskih.course.prafdin.ru"
-          echo "📦 Image used: $IMAGE_NAME"
-          echo "🎯 Trigger: ${{ github.event_name }}"

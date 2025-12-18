@@ -27,7 +27,10 @@ router = APIRouter()
 # --------------------------------------------------------------------------------
 # Routes
 # --------------------------------------------------------------------------------
-
+@router.get("/")
+async def read_root(request: Request):
+    """Корневой путь - перенаправляем на логин или показываем инфо."""
+    return RedirectResponse(url="/login")
 @router.get(
     path="/",
     summary="Gets the main page",

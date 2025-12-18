@@ -1,181 +1,166 @@
-"""
-This module is the main module for the FastAPI app.
-"""
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+import redis
+import sqlite3
+import os
+import datetime
+import json
 
-# --------------------------------------------------------------------------------
-# Imports
-# --------------------------------------------------------------------------------
+app = FastAPI(title="Catty Reminders v4.0", version="4.0.0")
+templates = Jinja2Templates(directory="templates")
+# Redis подключение для счетчика
+redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
 
-from app.utils.exceptions import UnauthorizedPageException
-from app.utils.visit_counter import init_visit_counter, increment_visit, get_visit_stats
-from app.routers import api, login, reminders, root
+# SQLite база для демонстрации
+DB_PATH = "/app/data/catty.db"
 
-from fastapi import FastAPI, Request
-from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
-import time
-
-
-# --------------------------------------------------------------------------------
-# Middleware for visit counting
-# --------------------------------------------------------------------------------
-
-class VisitCounterMiddleware(BaseHTTPMiddleware):
-    """Middleware to count page visits."""
-    
-    async def dispatch(self, request: Request, call_next):
-        # Skip counting for static files, API calls, and certain paths
-        skip_paths = [
-            '/static/', '/api/', '/favicon.ico', 
-            '/health', '/stats', '/visits', '/reset-counter'
-        ]
-        
-        should_count = (
-            request.method == "GET" and
-            not any(request.url.path.startswith(path) for path in skip_paths) and
-            not request.url.path.endswith(('.css', '.js', '.png', '.jpg', '.ico'))
+def init_database():
+    """Инициализация простой БД"""
+    os.makedirs("/app/data", exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS visits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_agent TEXT,
+            ip_address TEXT
         )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed BOOLEAN DEFAULT 0
+        )
+    ''')
+    conn.commit()
+    conn.close()
+# Инициализируем БД при старте
+init_database()
+
+@app.get("/", response_class=HTMLResponse)
+def read_root(request: Request):
+    """Главная страница - логин форма"""
+    return templates.TemplateResponse("login.html", {"request": request})
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    """Дашборд после логина"""
+    # Получаем статистику
+    visit_count = redis_client.get('total_visits') or 0
+    task_count = get_task_count()
+    
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "visit_count": visit_count,
+        "task_count": task_count,
+        "containers": ["web", "redis", "database"],
+        "deployment_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+@app.get("/api/visits")
+def get_visits():
+    """API: получить количество посещений"""
+    visits = redis_client.get('total_visits') or 0
+    return {"visits": int(visits), "timestamp": datetime.datetime.now().isoformat()}
+@app.post("/api/visit")
+def increment_visit(request: Request):
+    """API: увеличить счетчик посещений"""
+    try:
+        # Redis счетчик
+        visits = redis_client.incr('total_visits')
         
-        if should_count:
-            increment_visit()
+        # SQLite логирование
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO visits (user_agent, ip_address) VALUES (?, ?)",
+            (request.headers.get('user-agent', ''), request.client.host)
+        )
+        conn.commit()
+        conn.close()
         
-        # Add visit stats to request state for use in templates
-        request.state.visit_stats = get_visit_stats()
-        
-        response = await call_next(request)
-        return response
+        return {"success": True, "visits": visits}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
+def get_task_count():
+    """Получить количество задач из БД"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM tasks")
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+    except:
+        return 0
+@app.get("/api/stats")
+def get_stats():
+    """Полная статистика системы"""
+    visits = redis_client.get('total_visits') or 0
+    task_count = get_task_count()
+    
+    # Получаем последние посещения
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), MAX(timestamp) FROM visits")
+    db_stats = cursor.fetchone()
+    conn.close()
+    
+    return {
+        "app": "Catty Reminders v4.0",
+        "lab": 4,
+        "visits": int(visits),
+        "tasks": task_count,
+        "database_records": db_stats[0] if db_stats else 0,
+        "last_activity": db_stats[1] if db_stats else None,
+        "containers": 2,
+        "deployment": "Docker Compose",
+        "ci_cd": "GitHub Actions",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
 
-# --------------------------------------------------------------------------------
-# App Creation
-# --------------------------------------------------------------------------------
-
-app = FastAPI()
-
-# Add visit counter middleware
-app.add_middleware(VisitCounterMiddleware)
-
-# Initialize visit counter on startup
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    redis_ok = redis_client.ping()
+    
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.close()
+        db_ok = True
+    except:
+        db_ok = False
+    
+    return {
+        "status": "healthy" if redis_ok and db_ok else "degraded",
+        "redis": "connected" if redis_ok else "disconnected",
+        "database": "connected" if db_ok else "disconnected",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+# Добавим несколько тестовых задач при первом запуске
 @app.on_event("startup")
-async def startup_event():
-    """Initialize components on application startup."""
-    print("🚀 Starting Catty Reminders App...")
+def startup_event():
+    """Действия при запуске приложения"""
+    # Устанавливаем начальное значение счетчика если его нет
+    if not redis_client.exists('total_visits'):
+        redis_client.set('total_visits', 100)  # Начинаем со 100
     
-    # Initialize visit counter
-    if init_visit_counter():
-        print("✅ Visit counter initialized successfully")
-    else:
-        print("⚠️ Visit counter initialization had issues")
-    
-    # Show initial stats
-    stats = get_visit_stats()
-    print(f"📊 Initial visit count: {stats.get('total_visits', 0)}")
-
-
-# Include routers
-app.include_router(root.router)
-app.include_router(api.router)
-app.include_router(login.router)
-app.include_router(reminders.router)
-
-
-# --------------------------------------------------------------------------------
-# New routes for visit statistics
-# --------------------------------------------------------------------------------
-
-@app.get("/stats")
-async def stats_page(request: Request):
-    """Display visit statistics page."""
-    stats = get_visit_stats()
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Catty Reminders - Statistics</title>
-        <link rel="stylesheet" href="/static/css/styles.css">
-        <style>
-            .stats-container {{
-                max-width: 600px;
-                margin: 50px auto;
-                padding: 30px;
-                background: #f8f9fa;
-                border-radius: 15px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }}
-            .stat-item {{
-                margin: 15px 0;
-                padding: 10px;
-                background: white;
-                border-radius: 8px;
-                border-left: 4px solid #4CAF50;
-            }}
-            .stat-label {{
-                font-weight: bold;
-                color: #333;
-            }}
-            .stat-value {{
-                color: #2196F3;
-                font-size: 1.2em;
-                margin-left: 10px;
-            }}
-            .visit-count {{
-                font-size: 2em;
-                color: #FF5722;
-                text-align: center;
-                margin: 20px 0;
-            }}
-            .db-status {{
-                padding: 5px 10px;
-                border-radius: 5px;
-                font-size: 0.9em;
-            }}
-            .db-connected {{ background: #d4edda; color: #155724; }}
-            .db-disconnected {{ background: #f8d7da; color: #721c24; }}
-        </style>
-    </head>
-    <body>
-        <div class="stats-container">
-            <h1>📊 Lab 4 - Docker Compose Statistics</h1>
-            <p>This demonstrates multi-container application with persistent data storage.</p>
-            
-            <div class="visit-count">
-                Total Visits: <strong>{stats.get('total_visits', 0)}</strong>
-            </div>
-            
-            <div class="stat-item">
-                <span class="stat-label">Last Visit:</span>
-                <span class="stat-value">{stats.get('last_visit', 'Never')}</span>
-            </div>
-            
-            <div class="stat-item">
-                <span class="stat-label">Current Time:</span>
-                <span class="stat-value">{stats.get('current_time', 'N/A')}</span>
-            </div>
-            
-            <div class="stat-item">
-                <span class="stat-label">Database Status:</span>
-                <span class="stat-value db-status {stats.get('database', 'disconnected')}">
-                    {stats.get('database', 'disconnected').upper()}
-                </span>
-            </div>
-            
-            <div style="margin-top: 30px; font-size: 0.9em; color: #666;">
-                <p><strong>Lab 4 Features Demonstrated:</strong></p>
-                <ul>
-                    <li>✓ Multi-container architecture (App + MySQL)</li>
-                    <li>✓ Persistent data storage with Docker volumes</li>
-                    <li>✓ Service communication via Docker network</li>
-                    <li>✓ Health checks and dependencies</li>
-                    <li>✓ No bind mounts (proper container isolation)</li>
-                </ul>
-            </div>
-            
-            <div style="margin-top: 20px;">
-                <a href="/" class="btn btn-primary">Back to Main Page</a>
-               
+    # Добавляем тестовые задачи если БД пустая
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM tasks")
+    if cursor.fetchone()[0] == 0:
+        test_tasks = [
+            ("Complete Lab 4", "Docker Compose deployment"),
+            ("Setup CI/CD", "GitHub Actions workflow"),
+            ("Add Redis cache", "Visit counter implementation"),
+            ("Deploy to production", "Course server deployment")
+        ]
+        cursor.executemany("INSERT INTO tasks (title, description) VALUES (?, ?)", test_tasks)
+        conn.commit()
+    conn.close()

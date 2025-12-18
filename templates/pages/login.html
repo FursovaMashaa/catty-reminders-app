@@ -3,8 +3,84 @@
     <title>Login | Catty reminders app</title>
     <link rel="stylesheet" type="text/css" href="/static/css/shared.css">
     <link rel="stylesheet" type="text/css" href="/static/css/login.css">
+    <style>
+        /* Стили для блока Lab 4 */
+        .lab4-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px auto;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid white;
+        }
+        .lab4-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .lab4-title h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .lab4-features {
+            font-size: 13px;
+            margin: 10px 0;
+        }
+        .lab4-features li {
+            margin: 5px 0;
+            list-style-type: none;
+            padding-left: 20px;
+            position: relative;
+        }
+        .lab4-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+        }
+        .lab4-demo {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .lab4-demo code {
+            background: rgba(0,0,0,0.2);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
 </head>
 <body>
+    <!-- Блок информации о Lab 4 -->
+    <div class="lab4-info">
+        <div class="lab4-title">
+            <span>🐳</span>
+            <h3>Лабораторная работа №4: Docker Compose</h3>
+        </div>
+        
+        <div class="lab4-features">
+            <ul>
+                <li>Мультиконтейнерное приложение (App + MySQL)</li>
+                <li>Данные сохраняются в Docker Volume</li>
+                <li>Контейнеры общаются через Docker Network</li>
+                <li>Health checks для базы данных</li>
+                <li>Нет bind mount исходного кода</li>
+            </ul>
+        </div>
+        
+        <div class="lab4-demo">
+            <strong>Проверка:</strong> После логина проверьте, что данные сохраняются после 
+            <code>docker compose down && docker compose up -d</code>
+        </div>
+    </div>
+
     <div class="login-page">
         <div class="paper-card form">
             <div class="login-form-top">

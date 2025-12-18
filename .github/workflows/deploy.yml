@@ -27,6 +27,8 @@ jobs:
         echo "CI pushes to GHCR, CD pulls from registry"
         echo "Branch: ${{ github.ref }}"
         echo "Actor: ${{ github.actor }}"
+        echo "Repository: ${{ github.repository }}"
+        echo "Repository (lowercase): ${{ github.repository | lower }}"
     
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.0
@@ -39,15 +41,16 @@ jobs:
           echo "=== Lab 3: Docker Deployment ==="
           echo "Pulling image from GitHub Container Registry..."
           
+          # Логинимся в GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Определяем имя образа
+          # Определяем имя образа (ВАЖНО: преобразуем в нижний регистр!)
           if [[ "${{ github.event_name }}" == "release" ]]; then
             IMAGE_TAG="latest"
-            IMAGE_NAME="ghcr.io/${{ github.repository }}:$IMAGE_TAG"
+            IMAGE_NAME="ghcr.io/${{ github.repository | lower }}:$IMAGE_TAG"
           else
             IMAGE_TAG="lab3-docker"
-            IMAGE_NAME="ghcr.io/${{ github.repository }}:$IMAGE_TAG"
+            IMAGE_NAME="ghcr.io/${{ github.repository | lower }}:$IMAGE_TAG"
           fi
           
           echo "Pulling image: $IMAGE_NAME"
@@ -66,3 +69,7 @@ jobs:
           
           sleep 5
           echo "✅ Docker container deployed successfully!"
+          
+          # Проверяем статус
+          echo "📊 Container status:"
+          docker ps --filter "name=catty-reminders" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

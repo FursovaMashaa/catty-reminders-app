@@ -1,10 +1,20 @@
-FROM python:3.12.8-slim
+FROM python:3.12-slim
 
-WORKDIR /catty-reminders-app
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . . 
+WORKDIR /app
 
-RUN pip install -r requirements.txt
+# Сначала только requirements для кэширования
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Потом только нужные файлы
+COPY app/ ./app/
+COPY config.json ./
 
 EXPOSE 8181
 

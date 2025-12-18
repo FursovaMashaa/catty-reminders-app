@@ -69,4 +69,3 @@ def alt_user(test_inputs):
 @pytest.fixture
 def catty_api(playwright: Playwright, base_url: str):
   return playwright.request.new_context(base_url=base_url)
-

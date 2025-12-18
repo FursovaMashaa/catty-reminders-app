@@ -1,0 +1,50 @@
+name: CD
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+        chmod 600 ~/.ssh/vm_key
+        
+    - name: Deploy with Docker Compose to VM
+      run: |
+        echo "Starting Docker Compose deployment..."
+        ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            -i ~/.ssh/vm_key \
+            -p 2435 \
+            masha@course.prafdin.ru "
+          echo 'Creating necessary directories...'          
+          
+          echo 'Logging in to GHCR...'
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          echo 'Pulling latest images...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml pull
+          
+          echo 'Stopping and removing old containers...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml down
+          
+          echo 'Starting new containers with Docker Compose...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml up -d
+          
+          echo 'Cleaning up...'
+          docker image prune -f
+          
+          echo 'Docker Compose deployment completed!'
+          echo 'Containers status:'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml ps
+          echo 'Application: http://app.fursova.course.prafdin.ru'
+        "

@@ -1,35 +1,81 @@
-name: CD Pipeline
+name: 🚀 Lab 3 - Docker CI/CD
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+  push:
+    branches: [ docker-lab3 ]
+    paths:
+      - 'Dockerfile'
+      - 'app/**'
+      - 'requirements.txt'
+      - '.github/workflows/docker-cd.yml'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: course.prafdin.ru
-          port: 2435
-          username: masha
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-              echo "Login to GHCR..."
-              echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-              echo "Pulling latest image..."
-              docker pull ghcr.io/fursovamashaa/catty-reminders-app:latest
-            
-              echo "Removing old container (force)..."
-              docker rm -f catty-reminders 2>/dev/null || true
-            
-              echo "Starting new container..."
-              docker run -d \
-                --name catty-reminders \
-                -p 8181:8181 \
-                --restart unless-stopped \
-                ghcr.io/fursovamashaa/catty-reminders-app:latest
-            
-              echo "✅ Deployment complete!"
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Debug info
+      run: |
+        echo "🔧 Lab 3 - Docker Deployment"
+        echo "Trigger: ${{ github.event_name }}"
+        echo "CI pushes to GHCR, CD pulls from registry"
+        echo "Branch: ${{ github.ref }}"
+        echo "Actor: ${{ github.actor }}"
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: course.prafdin.ru
+        # Используем порт 2435 из второго варианта
+        port: 2435
+        # Используем username masha из второго варианта
+        username: masha
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "=== Lab 3: Docker Deployment ==="
+          echo "Pulling image from GitHub Container Registry..."
+          
+          # Логинимся в GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Определяем имя образа
+          # Для релизов используем :latest, для веток используем имя ветки
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            IMAGE_TAG="latest"
+            IMAGE_NAME="ghcr.io/fursovamashaa/catty-reminders-app:$IMAGE_TAG"
+          else
+            IMAGE_TAG="docker-lab3"
+            IMAGE_NAME="ghcr.io/${{ github.repository }}:$IMAGE_TAG"
+          fi
+          
+          echo "Pulling image: $IMAGE_NAME"
+          docker pull $IMAGE_NAME
+          
+          echo "Stopping old container..."
+          docker stop catty-reminders 2>/dev/null || true
+          docker rm catty-reminders 2>/dev/null || true
+          
+          echo "Starting new container..."
+          docker run -d \
+            --name catty-reminders \
+            --restart unless-stopped \
+            -p 8181:8181 \
+            $IMAGE_NAME
+          
+          sleep 5
+          echo "✅ Docker container deployed successfully!"
+          
+          # Проверяем статус контейнера
+          echo "📊 Container status:"
+          docker ps --filter "name=catty-reminders" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo ""
+          echo "🌐 Application URL: http://app.titovskih.course.prafdin.ru"
+          echo "📦 Image used: $IMAGE_NAME"
+          echo "🎯 Trigger: ${{ github.event_name }}"

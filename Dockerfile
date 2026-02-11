@@ -7,17 +7,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Копируем зависимости
-COPY requirements.txt .
-
-# Устанавливаем Python зависимости
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Копируем весь код
-COPY . .
-
-# Открываем порт
 EXPOSE 8181
 
-# Команда запуска
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8181"]
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Устанавливаем Chromium для Playwright
+RUN playwright install --with-deps chromium
+
+COPY . .
+
+EXPOSE 8181
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8181"] 

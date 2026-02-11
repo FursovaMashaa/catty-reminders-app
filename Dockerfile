@@ -1,16 +1,15 @@
-FROM python:3.12-slim  # slim версия легче и быстрее
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Копируем только requirements сначала (для кэширования)
+# Сначала копируем только requirements.txt
 COPY requirements.txt .
 
-# Устанавливаем зависимости с флагами для ускорения
+# Устанавливаем зависимости
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --default-timeout=100 \
-    fastapi uvicorn jinja2  # основные пакеты ставим сразу
+    pip install --no-cache-dir -r requirements.txt
 
-# Копируем остальное
+# Копируем остальное приложение
 COPY . .
 
 EXPOSE 8181

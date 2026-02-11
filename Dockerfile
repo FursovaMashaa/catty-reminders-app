@@ -1,10 +1,17 @@
-FROM python:3.12.8
+FROM python:3.12-slim  # slim версия легче и быстрее
 
-WORKDIR /catty-reminders-app
+WORKDIR /app
 
-COPY . . 
+# Копируем только requirements сначала (для кэширования)
+COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+# Устанавливаем зависимости с флагами для ускорения
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --default-timeout=100 \
+    fastapi uvicorn jinja2  # основные пакеты ставим сразу
+
+# Копируем остальное
+COPY . .
 
 EXPOSE 8181
 

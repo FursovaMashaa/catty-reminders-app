@@ -1,4 +1,4 @@
-version: '3.8'
+name: catty-reminders-lab4
 
 services:
   app:
@@ -10,7 +10,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-default-secret-key}
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_healthy    # ← требует healthcheck
     restart: unless-stopped
 
   db:
@@ -21,6 +21,12 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     restart: unless-stopped
+    healthcheck:                      # ← добавляем
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmypass"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   mysql_data:

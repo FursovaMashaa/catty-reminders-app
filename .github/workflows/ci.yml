@@ -2,9 +2,9 @@ name: Lab 4 - Docker Compose CI
 
 on:
   push:
-    branches: [multicontainers] 
+    branches: [lab4] 
   pull_request:
-    branches: [multicontainers]  
+    branches: [lab4]  
 
 jobs:
   build-and-push:
